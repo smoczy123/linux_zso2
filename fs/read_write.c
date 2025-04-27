@@ -5,6 +5,8 @@
  *  Copyright (C) 1991, 1992  Linus Torvalds
  */
 
+#include <linux/bpf_compressor.h>
+#include <linux/types.h>
 #include <linux/slab.h>
 #include <linux/stat.h>
 #include <linux/sched/xacct.h>
@@ -686,7 +688,39 @@ ssize_t vfs_write(struct file *file, const char __user *buf, size_t count, loff_
 	if (ret > 0) {
 		fsnotify_modify(file);
 		add_wchar(current, ret);
+		if (file->f_compress) {
+
+			char* kern_buf = kmalloc(count, GFP_KERNEL);
+			if (!kern_buf) {
+				ret = -EINVAL;
+				goto out;
+			}
+			
+			if (copy_from_user(kern_buf, buf, count)) {
+				ret = -EINVAL;
+				kfree(kern_buf);
+				goto out;
+			}
+
+			struct compress_ctx_kern ctx = {
+				.offset = pos ? *pos : 0,
+				.size = count,
+				.buf = kern_buf,
+			};
+			ssize_t compressed;
+			compressed = bpf_compressor_verify(&ctx);
+			if (compressed < 0) {
+				ret = -EINVAL;
+				kfree(kern_buf);
+				goto out;
+			}
+	
+			file->f_bytes_written += ret;
+			file->f_bytes_after_compression += compressed;
+			kfree(kern_buf);
+		}
 	}
+out:
 	inc_syscw(current);
 	file_end_write(file);
 	return ret;
@@ -1064,8 +1098,61 @@ static ssize_t vfs_writev(struct file *file, const struct iovec __user *vec,
 		ret = do_iter_readv_writev(file, &iter, pos, WRITE, flags);
 	else
 		ret = do_loop_readv_writev(file, &iter, pos, WRITE, flags);
-	if (ret > 0)
+	if (ret > 0) {
 		fsnotify_modify(file);
+
+		if (file->f_compress) {
+			size_t written = ret;
+			ssize_t compressed = 0;
+			size_t processed = 0;
+			loff_t fpos = pos ? *pos : 0;
+			for (size_t i = 0; i < vlen; i++) {
+				if (processed >= written)
+					break;
+
+				struct iovec iov;
+				if (copy_from_user(&iov, &vec[i], sizeof(vec[i]))) {
+					compressed = -EFAULT;
+					break;
+				}
+				
+				size_t size = processed + iov.iov_len > written ? written - processed : iov.iov_len;
+				char* kern_buf = kmalloc(size, GFP_KERNEL);
+				if (!kern_buf) {
+					compressed = -ENOMEM;
+					break;
+				}
+				
+				if (copy_from_user(kern_buf, iov.iov_base, size)) {
+					compressed = -EFAULT;
+					kfree(kern_buf);
+					break;
+				}
+				struct compress_ctx_kern ctx = {
+					.offset = fpos,
+					.size = size,
+					.buf = kern_buf
+				};
+				ssize_t tmp = bpf_compressor_verify(&ctx);
+				kfree(kern_buf);
+				if (tmp < 0) {
+					compressed = -EINVAL;
+					break;
+				} else {
+					compressed += tmp;
+					processed += size;
+				}
+			}
+			
+			if (compressed >= 0) {
+				file->f_bytes_written += ret;
+				file->f_bytes_after_compression += compressed;
+			} else {
+				ret = compressed;
+			}
+		}
+
+	}
 	file_end_write(file);
 out:
 	kfree(iov);

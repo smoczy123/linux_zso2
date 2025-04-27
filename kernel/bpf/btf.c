@@ -21,6 +21,7 @@
 #include <linux/btf_ids.h>
 #include <linux/bpf.h>
 #include <linux/bpf_lsm.h>
+#include <linux/bpf_compressor.h>
 #include <linux/skmsg.h>
 #include <linux/perf_event.h>
 #include <linux/bsearch.h>

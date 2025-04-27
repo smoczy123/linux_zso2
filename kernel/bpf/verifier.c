@@ -22087,6 +22087,7 @@ int bpf_check_attach_target(struct bpf_verifier_log *log,
 	case BPF_LSM_CGROUP:
 	case BPF_TRACE_FENTRY:
 	case BPF_TRACE_FEXIT:
+	case BPF_COMPRESSOR:
 		if (!btf_type_is_func(t)) {
 			bpf_log(log, "attach_btf_id %u is not a function\n",
 				btf_id);
@@ -22164,6 +22165,9 @@ int bpf_check_attach_target(struct bpf_verifier_log *log,
 				if (bpf_lsm_is_sleepable_hook(btf_id))
 					ret = 0;
 				break;
+			case BPF_PROG_TYPE_COMPRESSOR:
+				ret = 0;
+				break;
 			default:
 				break;
 			}
@@ -22232,7 +22236,8 @@ static bool can_be_sleepable(struct bpf_prog *prog)
 	}
 	return prog->type == BPF_PROG_TYPE_LSM ||
 	       prog->type == BPF_PROG_TYPE_KPROBE /* only for uprobes */ ||
-	       prog->type == BPF_PROG_TYPE_STRUCT_OPS;
+	       prog->type == BPF_PROG_TYPE_STRUCT_OPS ||
+		   prog->type == BPF_PROG_TYPE_COMPRESSOR;
 }
 
 static int check_attach_btf_id(struct bpf_verifier_env *env)
@@ -22254,7 +22259,7 @@ static int check_attach_btf_id(struct bpf_verifier_env *env)
 	}
 
 	if (prog->sleepable && !can_be_sleepable(prog)) {
-		verbose(env, "Only fentry/fexit/fmod_ret, lsm, iter, uprobe, and struct_ops programs can be sleepable\n");
+		verbose(env, "Only fentry/fexit/fmod_ret, compressor, lsm, iter, uprobe, and struct_ops programs can be sleepable\n");
 		return -EINVAL;
 	}
 
@@ -22263,7 +22268,8 @@ static int check_attach_btf_id(struct bpf_verifier_env *env)
 
 	if (prog->type != BPF_PROG_TYPE_TRACING &&
 	    prog->type != BPF_PROG_TYPE_LSM &&
-	    prog->type != BPF_PROG_TYPE_EXT)
+	    prog->type != BPF_PROG_TYPE_EXT &&
+		prog->type != BPF_PROG_TYPE_COMPRESSOR)
 		return 0;
 
 	ret = bpf_check_attach_target(&env->log, prog, tgt_prog, btf_id, &tgt_info);

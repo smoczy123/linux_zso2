@@ -2488,6 +2488,7 @@ bpf_prog_load_check_attach(enum bpf_prog_type prog_type,
 		switch (prog_type) {
 		case BPF_PROG_TYPE_TRACING:
 		case BPF_PROG_TYPE_LSM:
+		case BPF_PROG_TYPE_COMPRESSOR:
 		case BPF_PROG_TYPE_STRUCT_OPS:
 		case BPF_PROG_TYPE_EXT:
 			break;
@@ -3320,6 +3321,12 @@ static int bpf_tracing_prog_attach(struct bpf_prog *prog,
 			goto out_put_prog;
 		}
 		break;
+	case BPF_PROG_TYPE_COMPRESSOR:
+		if (prog->expected_attach_type != BPF_COMPRESSOR) {
+			err = -EINVAL;
+			goto out_put_prog;
+		}
+		break;
 	default:
 		err = -EINVAL;
 		goto out_put_prog;
@@ -3817,6 +3824,7 @@ static int bpf_raw_tp_link_attach(struct bpf_prog *prog,
 	case BPF_PROG_TYPE_TRACING:
 	case BPF_PROG_TYPE_EXT:
 	case BPF_PROG_TYPE_LSM:
+	case BPF_PROG_TYPE_COMPRESSOR:
 		if (user_tp_name)
 			/* The attach point for this category of programs
 			 * should be specified via btf_id during program load.

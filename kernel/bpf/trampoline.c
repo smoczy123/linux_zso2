@@ -523,6 +523,8 @@ static enum bpf_tramp_prog_type bpf_attach_type_to_tramp(struct bpf_prog *prog)
 			return BPF_TRAMP_FEXIT;
 		else
 			return BPF_TRAMP_MODIFY_RETURN;
+	case BPF_COMPRESSOR:
+		return BPF_TRAMP_REPLACE;
 	default:
 		return BPF_TRAMP_REPLACE;
 	}
@@ -569,9 +571,11 @@ static int __bpf_trampoline_link_prog(struct bpf_tramp_link *link,
 		/* Cannot attach extension if fentry/fexit are in use. */
 		if (cnt)
 			return -EBUSY;
-		err = bpf_freplace_check_tgt_prog(tgt_prog);
-		if (err)
-			return err;
+		if (link->link.prog->expected_attach_type != BPF_COMPRESSOR) {		
+			err = bpf_freplace_check_tgt_prog(tgt_prog);
+			if (err)
+				return err;
+		}
 		tr->extension_prog = link->link.prog;
 		return bpf_arch_text_poke(tr->func.addr, BPF_MOD_JUMP, NULL,
 					  link->link.prog->bpf_func);
@@ -623,8 +627,10 @@ static int __bpf_trampoline_unlink_prog(struct bpf_tramp_link *link,
 		err = bpf_arch_text_poke(tr->func.addr, BPF_MOD_JUMP,
 					 tr->extension_prog->bpf_func, NULL);
 		tr->extension_prog = NULL;
-		guard(mutex)(&tgt_prog->aux->ext_mutex);
-		tgt_prog->aux->is_extended = false;
+		if (link->link.prog->expected_attach_type != BPF_COMPRESSOR) {
+			guard(mutex)(&tgt_prog->aux->ext_mutex);
+			tgt_prog->aux->is_extended = false;
+		}
 		return err;
 	}
 	hlist_del_init(&link->tramp_hlist);

@@ -33,6 +33,8 @@
 #include <linux/compat.h>
 #include <linux/mnt_idmapping.h>
 #include <linux/filelock.h>
+#include <linux/bpf_compressor.h>
+#include <linux/cred.h>
 
 #include "internal.h"
 
@@ -1402,6 +1404,7 @@ static long do_sys_openat2(int dfd, const char __user *filename,
 	struct open_flags op;
 	int fd = build_open_flags(how, &op);
 	struct filename *tmp;
+	struct compress_ctx_kern ctx;
 
 	if (fd)
 		return fd;
@@ -1418,6 +1421,23 @@ static long do_sys_openat2(int dfd, const char __user *filename,
 			fd = PTR_ERR(f);
 		} else {
 			fd_install(fd, f);
+			kuid_t uid;
+			kgid_t gid;
+			
+			current_uid_gid(&uid, &gid);
+			ctx.uid = uid;
+			ctx.gid = gid;
+			ctx.buf = NULL;
+			
+			if (bpf_compressor_decide(&ctx)) {
+				f->f_compress = 1;
+				f->f_bytes_written = 0;
+				f->f_bytes_after_compression = 0;
+			} else {
+				f->f_compress = 0;
+				f->f_bytes_written = 0;
+				f->f_bytes_after_compression = 0;
+			}
 		}
 	}
 	putname(tmp);

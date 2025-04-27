@@ -1065,6 +1065,9 @@ struct file {
 		struct file_ra_state	f_ra;
 		freeptr_t		f_freeptr;
 	};
+	size_t 			f_compress;
+	size_t 			f_bytes_written;
+	size_t 			f_bytes_after_compression;
 	/* --- cacheline 3 boundary (192 bytes) --- */
 } __randomize_layout
   __attribute__((aligned(4)));	/* lest something weird decides that 2 is OK */

@@ -10,6 +10,7 @@
 
 #include <linux/types.h>
 #include <linux/bpf_common.h>
+#include <linux/uidgid_types.h>
 
 /* Extended instruction set based on top of classic BPF */
 
@@ -1055,6 +1056,7 @@ enum bpf_prog_type {
 	BPF_PROG_TYPE_SK_LOOKUP,
 	BPF_PROG_TYPE_SYSCALL, /* a program that can execute syscalls */
 	BPF_PROG_TYPE_NETFILTER,
+	BPF_PROG_TYPE_COMPRESSOR,
 	__MAX_BPF_PROG_TYPE
 };
 
@@ -1116,6 +1118,7 @@ enum bpf_attach_type {
 	BPF_NETKIT_PRIMARY,
 	BPF_NETKIT_PEER,
 	BPF_TRACE_KPROBE_SESSION,
+	BPF_COMPRESSOR,
 	__MAX_BPF_ATTACH_TYPE
 };
 
@@ -7521,6 +7524,19 @@ struct bpf_iter_num {
  */
 enum bpf_kfunc_flags {
 	BPF_F_PAD_ZEROS = (1ULL << 0),
+};
+
+struct compress_ctx {
+    union {
+        struct {
+            loff_t offset;
+            size_t size;
+        };
+        struct {
+            kuid_t uid;
+            kgid_t gid;
+        };
+    };
 };
 
 #endif /* _UAPI__LINUX_BPF_H__ */
