@@ -392,3 +392,6 @@ COND_SYSCALL(setuid16);
 COND_SYSCALL(rseq);
 
 COND_SYSCALL(uretprobe);
+
+COND_SYSCALL(get_compression_stats);
+COND_SYSCALL(reset_compression_stats);

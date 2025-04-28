@@ -3731,4 +3731,7 @@ static inline bool vfs_empty_path(int dfd, const char __user *path)
 
 int generic_atomic_write_valid(struct kiocb *iocb, struct iov_iter *iter);
 
+int get_compression_stats(int fd, size_t __user * bytes_written, size_t __user * bytes_after_compression);
+int reset_compression_stats(int fd);
+
 #endif /* _LINUX_FS_H */
