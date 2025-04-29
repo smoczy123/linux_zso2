@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /* Copyright (c) 2011-2014 PLUMgrid, http://plumgrid.com
  */
+#include <linux/bpf_compressor.h>
+#include <linux/lzo.h>
 #include <linux/bpf.h>
 #include <linux/btf.h>
 #include <linux/bpf-cgroup.h>
@@ -1879,6 +1881,74 @@ static const struct bpf_func_proto bpf_dynptr_data_proto = {
 	.arg2_type	= ARG_ANYTHING,
 	.arg3_type	= ARG_CONST_ALLOC_SIZE_OR_ZERO,
 };
+
+BPF_CALL_4(bpf_copy_from_buffer, void *, ctx, unsigned long, offset,
+	   void *, ptr, unsigned long, size)
+{
+	struct compress_ctx_kern *compress_ctx = ctx;
+
+	if (!compress_ctx->buf) {
+		return -EINVAL;
+	}
+
+	if (offset > compress_ctx->size) {
+		return -EINVAL;
+	}
+
+	size_t amount = min(compress_ctx->size - offset, size);
+
+	memcpy(ptr, compress_ctx->buf + offset, amount);
+
+	return 0;
+}
+
+const struct bpf_func_proto bpf_copy_from_buffer_proto = {
+	.func		= bpf_copy_from_buffer,
+	.gpl_only	= true,
+	.ret_type	= RET_INTEGER,
+	.arg1_type	= ARG_PTR_TO_CTX,
+	.arg2_type	= ARG_ANYTHING,
+	.arg3_type	= ARG_PTR_TO_MEM,
+	.arg4_type	= ARG_CONST_SIZE_OR_ZERO,
+};
+
+
+BPF_CALL_1(bpf_lzo_compress, void *, ctx) 
+{
+	struct compress_ctx_kern *compress_ctx = ctx;
+	int ret;
+	if (!compress_ctx->buf) {
+		return -EINVAL;
+	}
+	void *wrkmem = kmalloc(LZO1X_1_MEM_COMPRESS, GFP_KERNEL);
+	if (!wrkmem) {
+		ret = -ENOMEM;
+		goto err_malloc1;
+	}
+	void *out = kmalloc(lzo1x_worst_compress(compress_ctx->size), GFP_KERNEL);
+	if (!out) {
+		ret = -ENOMEM;
+		goto err_malloc2;
+	}
+	size_t out_size;
+	ret = lzo1x_1_compress(compress_ctx->buf, compress_ctx->size, out, &out_size, wrkmem);
+	kfree(out);
+	err_malloc2:
+	kfree(wrkmem);
+	err_malloc1:
+	if (ret) {
+		return ret;
+	}
+	return out_size;
+}	
+
+const struct bpf_func_proto bpf_lzo_compress_proto = {
+	.func		= bpf_lzo_compress,
+	.gpl_only	= true,
+	.ret_type	= RET_INTEGER,
+	.arg1_type	= ARG_PTR_TO_CTX,
+};
+
 
 const struct bpf_func_proto bpf_get_current_task_proto __weak;
 const struct bpf_func_proto bpf_get_current_task_btf_proto __weak;

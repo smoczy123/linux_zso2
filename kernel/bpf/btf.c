@@ -6526,7 +6526,7 @@ bool btf_ctx_access(int off, int size, enum bpf_access_type type,
 	u32 nr_args, arg;
 	int i, ret;
 
-	if (off % 8) {
+	if (off % 8 && prog->expected_attach_type != BPF_COMPRESSOR) {
 		bpf_log(log, "func '%s' offset %d is not multiple of 8\n",
 			tname, off);
 		return false;
@@ -6616,7 +6616,7 @@ bool btf_ctx_access(int off, int size, enum bpf_access_type type,
 		return false;
 	}
 
-	if (size != sizeof(u64)) {
+	if (size != sizeof(u64) && prog->expected_attach_type != BPF_COMPRESSOR) {
 		bpf_log(log, "func '%s' size %d must be 8\n",
 			tname, size);
 		return false;

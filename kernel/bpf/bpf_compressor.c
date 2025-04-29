@@ -17,6 +17,14 @@ bpf_compressor_func_proto(enum bpf_func_id func_id, const struct bpf_prog *prog)
 const struct bpf_func_proto *
 bpf_compressor_func_proto(enum bpf_func_id func_id, const struct bpf_prog *prog) {
     switch (func_id) {
+    case BPF_FUNC_lzo_compress:
+        return &bpf_lzo_compress_proto;
+    case BPF_FUNC_copy_from_buffer:
+        return &bpf_copy_from_buffer_proto;
+    case BPF_FUNC_get_current_uid_gid:
+        return &bpf_get_current_uid_gid_proto;
+    case BPF_FUNC_get_current_pid_tgid:
+        return &bpf_get_current_pid_tgid_proto;
     default:
         return bpf_base_func_proto(func_id, prog);
     }
